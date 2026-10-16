@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reyting jadvali</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root { --navy:#101827; --surface:#192337; --surface-light:#223049; --line:rgba(255,255,255,.09); --text:#f6f8fc; --muted:#9ba9bf; --gold:#f6bd49; --green:#56d49b; }
+    * { box-sizing:border-box; } body { min-height:100vh; margin:0; padding:48px 20px; color:var(--text); font-family:'DM Sans',sans-serif; background:radial-gradient(circle at 10% 0%,#263b5f 0,transparent 31rem),var(--navy); }
+    .board { width:min(860px,100%); margin:auto; } .top { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:28px; }
+    .eyebrow { margin:0 0 8px; color:var(--gold); font-size:12px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; } h1 { margin:0; font:700 clamp(30px,5vw,44px)/1.1 'Playfair Display',serif; }
+    .status { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:14px; white-space:nowrap; } .dot { width:9px; height:9px; border-radius:50%; background:#6f7c91; } .status.connected .dot { background:var(--green); box-shadow:0 0 0 5px rgba(86,212,155,.12); }
+    .card { overflow:hidden; border:1px solid var(--line); border-radius:18px; background:rgba(25,35,55,.93); box-shadow:0 20px 60px rgba(0,0,0,.25); }
+    .table-head,.score-row { display:grid; grid-template-columns:76px minmax(0,1fr) 100px; align-items:center; } .table-head { padding:15px 24px; color:var(--muted); border-bottom:1px solid var(--line); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; } .table-head span:last-child { text-align:right; }
+    .score-row { min-height:82px; padding:12px 24px; border-bottom:1px solid var(--line); transition:background .2s ease; } .score-row:last-child { border:0; } .score-row:hover { background:rgba(255,255,255,.035); } .score-row.updated { animation:flash .9s ease; }
+    .rank { width:36px; height:36px; display:grid; place-items:center; border-radius:10px; color:var(--muted); background:var(--surface-light); font-weight:700; } .rank.first { color:#473000; background:var(--gold); } .rank.second { color:#27313d; background:#cbd3dd; } .rank.third { color:#422713; background:#cf9365; }
+    .student { display:flex; align-items:center; gap:13px; min-width:0; } .avatar { width:44px; height:44px; display:grid; flex:0 0 auto; place-items:center; overflow:hidden; border-radius:50%; color:#d9e4f5; background:#405577; font-weight:700; } .avatar img { width:100%; height:100%; object-fit:cover; }
+    .name { overflow:hidden; font-size:16px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; } .label { margin-top:3px; color:var(--muted); font-size:13px; } .points { color:var(--gold); font-size:20px; font-weight:700; text-align:right; } .points small { color:var(--muted); font-size:12px; font-weight:500; } .empty { padding:64px 24px; color:var(--muted); text-align:center; }
+    @keyframes flash { 50% { background:rgba(246,189,73,.18); } } @media (max-width:540px) { body { padding:32px 14px; } .top { align-items:start; flex-direction:column; gap:12px; } .table-head,.score-row { grid-template-columns:50px minmax(0,1fr) 74px; padding-inline:14px; } .avatar { width:38px; height:38px; } .points { font-size:17px; } }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <header class="top"><div><p class="eyebrow">Natijalar jadvali</p><h1>Eng yaxshi o'quvchilar</h1></div><div id="socket-status" class="status"><span class="dot"></span><span>Jonli yangilanish kutilmoqda</span></div></header>
+    <section class="card" aria-label="O'quvchilar reytingi">
+      <div class="table-head"><span>O'rin</span><span>O'quvchi</span><span>Ball</span></div>
+      <div id="score-list">
+        {% for score in scores %}
+        <article class="score-row" data-student-id="{{ score.student.id }}" data-score="{{ score.coin }}">
+          <span class="rank"></span><div class="student"><span class="avatar">{{ score.student.name|slice:':1'|upper }}</span><div><div class="name">{{ score.student.name }}</div><div class="label">O'quvchi</div></div></div><div class="points"><span class="score-value">{{ score.coin }}</span> <small>ball</small></div>
+        </article>
+        {% empty %}<div class="empty">Hozircha baholar yo'q.</div>{% endfor %}
+      </div>
+    </section>
+  </main>
+  <script>
+    const list = document.getElementById('score-list');
+    const status = document.getElementById('socket-status');
+    function updateRanks() {
+      [...list.querySelectorAll('.score-row')].sort((a,b) => Number(b.dataset.score)-Number(a.dataset.score)).forEach((row,index) => { row.querySelector('.rank').textContent=index+1; row.querySelector('.rank').className='rank '+(index===0?'first':index===1?'second':index===2?'third':''); list.appendChild(row); });
+    }
+    function applyScoreUpdate(data) {
+      const row=list.querySelector(`[data-student-id="${data.student_id}"]`);
+      if (!row || typeof data.ball === 'undefined') return;
+      row.dataset.score=data.ball; row.querySelector('.score-value').textContent=data.ball; row.classList.remove('updated'); void row.offsetWidth; row.classList.add('updated'); updateRanks();
+    }
+    updateRanks();
+    const protocol=location.protocol==='https:'?'wss':'ws';
+    const socket=new WebSocket(`${protocol}://${location.host}/ws/notifications/`);
+    socket.onopen=() => { status.classList.add('connected'); status.lastElementChild.textContent='Jonli yangilanmoqda'; };
+    socket.onclose=() => { status.classList.remove('connected'); status.lastElementChild.textContent='Ulanish uzildi'; };
+    socket.onmessage=event => { const data=JSON.parse(event.data); if (data.type==='ball_update') applyScoreUpdate(data); };
+  </script>
+</body>
+</html>
